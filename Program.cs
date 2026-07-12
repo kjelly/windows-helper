@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace FontLister;
+namespace WindowsHelper;
 
 class Program
 {
@@ -38,6 +38,13 @@ class Program
         if (args.Contains("--help") || args.Contains("-h"))
         {
             ShowHelp();
+            return;
+        }
+
+        if (args.Contains("--clean-hotkeys"))
+        {
+            bool keepTabMovement = args.Contains("--keep-tab-movement");
+            UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
             return;
         }
 
@@ -98,7 +105,7 @@ class Program
 
     static void ShowHelp()
     {
-        Console.WriteLine("字型列出與終端機字型自動設定工具");
+        Console.WriteLine("字型列出與終端機設定輔助工具");
         Console.WriteLine();
         Console.WriteLine("用法:");
         Console.WriteLine("  dotnet run [參數]");
@@ -109,6 +116,8 @@ class Program
         Console.WriteLine("  --all-fonts              列出系統中安裝的所有字型名稱");
         Console.WriteLine("  -f, --font \"名稱\"        指定要設定的字型名稱 (必填，若有指定其他設定參數)");
         Console.WriteLine("  -t, --terminal [類型]    指定要設定的終端機 (tabby / wave / both，預設為 both)");
+        Console.WriteLine("  --clean-hotkeys          清除 Tabby Terminal 快捷鍵 (僅保留核心快速鍵)");
+        Console.WriteLine("  --keep-tab-movement      搭配 --clean-hotkeys 使用，保留分頁移動快速鍵 (Ctrl-Shift-PageUp/Down)");
         Console.WriteLine("  -h, --help               顯示此說明訊息");
     }
 
@@ -176,8 +185,47 @@ class Program
 
     static void RunInteractiveMode(string tabbyPath, string wavePath)
     {
-        Console.WriteLine("=== Windows 終端機字型自動設定工具 ===");
-        Console.WriteLine("正在掃描系統內安裝的等寬字型...");
+        while (true)
+        {
+            Console.WriteLine("=== Windows 終端機設定輔助工具 ===");
+            Console.WriteLine("1. 設定終端機字型 (Tabby & Wave)");
+            Console.WriteLine("2. 清除 Tabby Terminal 快捷鍵 (僅保留核心快速鍵)");
+            Console.WriteLine("3. 離開");
+            Console.Write("請選擇功能 (1-3): ");
+            
+            string? choice = Console.ReadLine();
+            if (choice == "1")
+            {
+                RunFontSetupFlow(tabbyPath, wavePath);
+                Console.WriteLine("\n按下任一鍵返回主選單...");
+                Console.ReadKey(true);
+                Console.Clear();
+            }
+            else if (choice == "2")
+            {
+                Console.Write("是否保留「鍵盤移動分頁 (Ctrl-Shift-PageUp/PageDown)」快速鍵？(y/N): ");
+                string? keepInput = Console.ReadLine()?.Trim().ToLower();
+                bool keepTabMovement = keepInput == "y" || keepInput == "yes";
+                UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
+                Console.WriteLine("\n按下任一鍵返回主選單...");
+                Console.ReadKey(true);
+                Console.Clear();
+            }
+            else if (choice == "3" || string.IsNullOrEmpty(choice))
+            {
+                Console.WriteLine("已退出程式。");
+                break;
+            }
+            else
+            {
+                Console.WriteLine("無效的選擇，請重新輸入。\n");
+            }
+        }
+    }
+
+    static void RunFontSetupFlow(string tabbyPath, string wavePath)
+    {
+        Console.WriteLine("\n正在掃描系統內安裝的等寬字型...");
         
         var monoFonts = GetMonospacedFonts();
         if (monoFonts.Count == 0)
@@ -364,6 +412,220 @@ class Program
         catch (Exception ex)
         {
             Console.WriteLine($"[Wave] 更新 Wave Terminal 設定時發生錯誤: {ex.Message}");
+        }
+    }
+
+    static void UpdateTabbyHotkeys(string configPath, bool keepTabMovement = false)
+    {
+        if (!File.Exists(configPath))
+        {
+            Console.WriteLine($"[Tabby] 找不到設定檔: {configPath}，無法清除快捷鍵。");
+            return;
+        }
+
+        // Create backup
+        string backupPath = configPath + ".bak";
+        try
+        {
+            File.Copy(configPath, backupPath, true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Tabby] 備份設定檔時失敗: {ex.Message}");
+        }
+
+        try
+        {
+            var lines = File.ReadAllLines(configPath).ToList();
+            int hotkeysStart = -1;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                if (lines[i].TrimEnd().Equals("hotkeys:"))
+                {
+                    hotkeysStart = i;
+                    break;
+                }
+            }
+
+            var actionsToDisable = new HashSet<string>
+            {
+                "toggle-window",
+                "copy-current-path",
+                "ctrl-c",
+                "copy",
+                "paste",
+                "select-all",
+                "clear",
+                "zoom-in",
+                "zoom-out",
+                "reset-zoom",
+                "home",
+                "end",
+                "previous-word",
+                "next-word",
+                "delete-previous-word",
+                "delete-line",
+                "delete-next-word",
+                "search",
+                "pane-focus-all",
+                "focus-all-tabs",
+                "scroll-to-top",
+                "scroll-page-up",
+                "scroll-up",
+                "scroll-down",
+                "scroll-page-down",
+                "scroll-to-bottom",
+                "restart-telnet-session",
+                "restart-ssh-session",
+                "launch-winscp",
+                "settings-tab",
+                "settings",
+                "serial",
+                "restart-serial-session",
+                "new-window",
+                "profile",
+                "profile-selectors",
+                "group-selectors",
+                "toggle-fullscreen",
+                "close-tab",
+                "reopen-tab",
+                "toggle-last-tab",
+                "rename-tab",
+                "next-tab",
+                "previous-tab",
+                "move-tab-left",
+                "move-tab-right",
+                "rearrange-panes",
+                "duplicate-tab",
+                "restart-tab",
+                "reconnect-tab",
+                "disconnect-tab",
+                "explode-tab",
+                "combine-tabs",
+                "split-right",
+                "split-bottom",
+                "split-left",
+                "split-top",
+                "pane-nav-right",
+                "pane-nav-down",
+                "pane-nav-up",
+                "pane-nav-left",
+                "pane-nav-previous",
+                "pane-nav-next",
+                "pane-maximize",
+                "close-pane",
+                "pane-increase-vertical",
+                "pane-decrease-vertical",
+                "pane-increase-horizontal",
+                "pane-decrease-horizontal",
+                "switch-profile",
+                "profile-selector",
+                "command-selector",
+                "open-sftp"
+            };
+
+            for (int i = 1; i <= 20; i++) actionsToDisable.Add($"tab-{i}");
+            for (int i = 1; i <= 9; i++) actionsToDisable.Add($"pane-nav-{i}");
+
+            int hotkeysEnd = lines.Count;
+
+            if (hotkeysStart != -1)
+            {
+                // Find end of hotkeys block
+                for (int i = hotkeysStart + 1; i < lines.Count; i++)
+                {
+                    string line = lines[i];
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    // If it starts with non-whitespace and is not comment, it's a new section
+                    if (!line.StartsWith(" ") && !line.StartsWith("\t") && !line.StartsWith("#"))
+                    {
+                        hotkeysEnd = i;
+                        break;
+                    }
+                }
+
+                // Collect any existing actions in the config under hotkeys
+                for (int i = hotkeysStart + 1; i < hotkeysEnd; i++)
+                {
+                    string line = lines[i];
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    string trimmed = line.TrimStart();
+                    int indent = line.Length - trimmed.Length;
+                    if (indent == 2 && trimmed.Contains(':'))
+                    {
+                        int colonIdx = trimmed.IndexOf(':');
+                        string actionName = trimmed.Substring(0, colonIdx).Trim();
+                        if (!string.IsNullOrEmpty(actionName))
+                        {
+                            actionsToDisable.Add(actionName);
+                        }
+                    }
+                }
+            }
+
+            // Remove the kept keys from actionsToDisable so they are not set to []
+            actionsToDisable.Remove("new-tab");
+            actionsToDisable.Remove("command-selector");
+            actionsToDisable.Remove("copy");
+            actionsToDisable.Remove("paste");
+            actionsToDisable.Remove("next-tab");
+            actionsToDisable.Remove("previous-tab");
+
+            if (keepTabMovement)
+            {
+                actionsToDisable.Remove("move-tab-left");
+                actionsToDisable.Remove("move-tab-right");
+            }
+
+            // Generate new hotkeys section
+            var newHotkeyLines = new List<string>();
+            newHotkeyLines.Add("hotkeys:");
+            newHotkeyLines.Add("  new-tab:");
+            newHotkeyLines.Add("    - Ctrl-Alt-T");
+            newHotkeyLines.Add("  command-selector:");
+            newHotkeyLines.Add("    - Ctrl-Shift-P");
+            newHotkeyLines.Add("  copy:");
+            newHotkeyLines.Add("    - Ctrl-Shift-C");
+            newHotkeyLines.Add("  paste:");
+            newHotkeyLines.Add("    - Ctrl-Shift-V");
+            newHotkeyLines.Add("    - Shift-Insert");
+            newHotkeyLines.Add("  next-tab:");
+            newHotkeyLines.Add("    - Ctrl-Tab");
+            newHotkeyLines.Add("  previous-tab:");
+            newHotkeyLines.Add("    - Ctrl-Shift-Tab");
+
+            if (keepTabMovement)
+            {
+                newHotkeyLines.Add("  move-tab-left:");
+                newHotkeyLines.Add("    - Ctrl-Shift-PageUp");
+                newHotkeyLines.Add("  move-tab-right:");
+                newHotkeyLines.Add("    - Ctrl-Shift-PageDown");
+            }
+
+            foreach (var action in actionsToDisable.OrderBy(a => a))
+            {
+                newHotkeyLines.Add($"  {action}: []");
+            }
+
+            // Replace or insert
+            if (hotkeysStart != -1)
+            {
+                lines.RemoveRange(hotkeysStart, hotkeysEnd - hotkeysStart);
+                lines.InsertRange(hotkeysStart, newHotkeyLines);
+            }
+            else
+            {
+                lines.AddRange(newHotkeyLines);
+            }
+
+            File.WriteAllLines(configPath, lines);
+            Console.WriteLine($"[Tabby] 已成功清除所有內建快捷鍵，僅保留核心快速鍵 (備份已儲存至 {Path.GetFileName(backupPath)})");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Tabby] 清除 Tabby Terminal 快捷鍵時發生錯誤: {ex.Message}");
         }
     }
 }

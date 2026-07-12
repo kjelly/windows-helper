@@ -1,4 +1,6 @@
-# Windows 字型列出與終端機字型自動設定工具 (Windows Font Lister & Terminal Configurator)
+# Windows Helper (windows-helper)
+
+Windows 字型列出與終端機字型自動設定工具 (Windows Font Lister & Terminal Configurator)
 
 這是一個使用 **.NET 9.0 (C#)** 開發的 Windows 主控台工具。它能自動掃描 Windows 系統中安裝的所有字型，篩選出適合終端機使用的**等寬字型 (Monospace Fonts)**，並能一鍵或透過指令行直接將指定的字型設定給 **Tabby Terminal** 與 **Wave Terminal**。
 
@@ -30,7 +32,7 @@
 ## 📂 專案檔案結構
 
 * [Program.cs](file:///C:/Users/kjell/ai/helper/Program.cs)：包含字型偵測、設定檔讀寫、CLI 參數處理及互動選單的完整邏輯。
-* [helper.csproj](file:///C:/Users/kjell/ai/helper/helper.csproj)：專案設定檔與相依套件宣告。
+* [windows-helper.csproj](file:///C:/Users/kjell/ai/helper/windows-helper.csproj)：專案設定檔與相依套件宣告。
 * [.gitignore](file:///C:/Users/kjell/ai/helper/.gitignore)：過濾 .NET 建置產出物。
 
 ---
