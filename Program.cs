@@ -14,52 +14,138 @@ class Program
     static void Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
-        
+
         // Paths for Tabby and Wave terminal configurations
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        
+
         string tabbyConfigPath = Path.Combine(appData, "tabby", "config.yaml");
         string waveConfigPath = Path.Combine(userProfile, ".config", "waveterm", "settings.json");
 
-        // Parse arguments
-        if (args.Length > 0)
+        // No args → run interactive mode
+        if (args.Length == 0)
         {
-            HandleCommandLineArgs(args, tabbyConfigPath, waveConfigPath);
+            RunInteractiveMode(tabbyConfigPath, waveConfigPath);
             return;
         }
 
-        // Run interactive mode
-        RunInteractiveMode(tabbyConfigPath, waveConfigPath);
+        DispatchCli(args, tabbyConfigPath, waveConfigPath);
     }
 
-    static void HandleCommandLineArgs(string[] args, string tabbyPath, string wavePath)
+    // Top-level CLI dispatcher: routes `helper <command> [subcommand] [args...]`
+    // to the appropriate subcommand handler.
+    static void DispatchCli(string[] args, string tabbyPath, string wavePath)
     {
-        if (args.Contains("--help") || args.Contains("-h"))
-        {
-            ShowHelp();
-            return;
-        }
+        string command = args[0].ToLowerInvariant();
 
-        if (args.Contains("--clean-hotkeys"))
+        switch (command)
         {
-            bool keepTabMovement = args.Contains("--keep-tab-movement");
-            UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
-            return;
-        }
-
-        if (args.Contains("--list") || args.Contains("-l"))
-        {
-            var monoFonts = GetMonospacedFonts();
-            Console.WriteLine("=== 系統內建適合終端機的字型 (等寬字型) ===");
-            foreach (var font in monoFonts)
+            case "font":
             {
-                Console.WriteLine($"- {font}");
+                string[] rest = args.Skip(1).ToArray();
+                DispatchFontCommand(rest, tabbyPath, wavePath);
+                return;
             }
+            case "hotkeys":
+            {
+                string[] rest = args.Skip(1).ToArray();
+                DispatchHotkeysCommand(rest, tabbyPath, wavePath);
+                return;
+            }
+            case "-h":
+            case "--help":
+            case "help":
+                ShowHelp();
+                return;
+            default:
+                Console.WriteLine($"錯誤：未知的命令 \"{args[0]}\"。輸入 --help 查看說明。");
+                Environment.ExitCode = 1;
+                return;
+        }
+    }
+
+    // `helper font ...`
+    static void DispatchFontCommand(string[] args, string tabbyPath, string wavePath)
+    {
+        if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
+        {
+            ShowFontHelp();
             return;
         }
 
-        if (args.Contains("--all-fonts"))
+        string sub = args[0].ToLowerInvariant();
+
+        switch (sub)
+        {
+            case "list":
+            {
+                bool all = args.Skip(1).Any(a => a is "--all" or "-a");
+                ListFonts(all);
+                return;
+            }
+            case "set":
+            {
+                // First non-flag arg is treated as the font name.
+                string? fontName = args.Skip(1).FirstOrDefault(a => !a.StartsWith("-"));
+                if (string.IsNullOrWhiteSpace(fontName))
+                {
+                    Console.WriteLine("錯誤：font set 需要指定字型名稱。例：helper font set \"Cascadia Code\"");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
+                string target = "both";
+                int tIdx = Array.IndexOf(args, "--target");
+                if (tIdx == -1) tIdx = Array.IndexOf(args, "-t");
+                if (tIdx != -1 && tIdx + 1 < args.Length)
+                {
+                    target = args[tIdx + 1].ToLowerInvariant();
+                }
+
+                ApplyFontSettings(fontName, target, tabbyPath, wavePath);
+                return;
+            }
+            case "interactive":
+            case "pick":
+                RunFontSetupFlow(tabbyPath, wavePath);
+                return;
+            default:
+                Console.WriteLine($"錯誤：未知的 font 子命令 \"{args[0]}\"。輸入 `helper font --help` 查看說明。");
+                Environment.ExitCode = 1;
+                return;
+        }
+    }
+
+    // `helper hotkeys ...`
+    static void DispatchHotkeysCommand(string[] args, string tabbyPath, string wavePath)
+    {
+        if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
+        {
+            ShowHotkeysHelp();
+            return;
+        }
+
+        string sub = args[0].ToLowerInvariant();
+
+        switch (sub)
+        {
+            case "clean":
+            case "reset":
+            {
+                bool keepTabMovement = args.Skip(1).Any(a => a is "--keep-tab-movement" or "-k");
+                UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
+                return;
+            }
+            default:
+                Console.WriteLine($"錯誤：未知的 hotkeys 子命令 \"{args[0]}\"。輸入 `helper hotkeys --help` 查看說明。");
+                Environment.ExitCode = 1;
+                return;
+        }
+    }
+
+    static void ListFonts(bool all)
+    {
+        if (all)
         {
             using var installedFonts = new InstalledFontCollection();
             Console.WriteLine("=== 系統內建所有字型 ===");
@@ -70,55 +156,67 @@ class Program
             return;
         }
 
-        // Get --font / -f argument
-        string? fontName = null;
-        int fontIdx = Array.IndexOf(args, "--font");
-        if (fontIdx == -1)
+        var monoFonts = GetMonospacedFonts();
+        Console.WriteLine("=== 系統內建適合終端機的字型 (等寬字型) ===");
+        foreach (var font in monoFonts)
         {
-            fontIdx = Array.IndexOf(args, "-f");
+            Console.WriteLine($"- {font}");
         }
-        if (fontIdx != -1 && fontIdx + 1 < args.Length)
-        {
-            fontName = args[fontIdx + 1];
-        }
-
-        if (string.IsNullOrEmpty(fontName))
-        {
-            Console.WriteLine("錯誤：必須提供 --font \"字型名稱\" 參數來進行設定。輸入 --help 查看說明。");
-            return;
-        }
-
-        // Get --terminal / -t argument
-        string targetTerminal = "both";
-        int termIdx = Array.IndexOf(args, "--terminal");
-        if (termIdx == -1)
-        {
-            termIdx = Array.IndexOf(args, "-t");
-        }
-        if (termIdx != -1 && termIdx + 1 < args.Length)
-        {
-            targetTerminal = args[termIdx + 1].ToLower();
-        }
-
-        ApplyFontSettings(fontName, targetTerminal, tabbyPath, wavePath);
     }
 
     static void ShowHelp()
     {
-        Console.WriteLine("字型列出與終端機設定輔助工具");
+        Console.WriteLine("Windows 終端機設定助手 (Windows Terminal Helper)");
+        Console.WriteLine();
+        Console.WriteLine("用於管理 Tabby Terminal 與 Wave Terminal 設定的小工具，");
+        Console.WriteLine("目前提供兩大子功能：字型 (font) 與快捷鍵 (hotkeys)。");
         Console.WriteLine();
         Console.WriteLine("用法:");
-        Console.WriteLine("  dotnet run [參數]");
+        Console.WriteLine("  helper                       啟動互動式選單");
+        Console.WriteLine("  helper <command> [options]   執行指定子命令");
         Console.WriteLine();
-        Console.WriteLine("參數:");
-        Console.WriteLine("  (無參數)                 啟動互動式選單進行字型選擇與設定");
-        Console.WriteLine("  -l, --list               列出系統中所有適合終端機的字型 (等寬字型)");
-        Console.WriteLine("  --all-fonts              列出系統中安裝的所有字型名稱");
-        Console.WriteLine("  -f, --font \"名稱\"        指定要設定的字型名稱 (必填，若有指定其他設定參數)");
-        Console.WriteLine("  -t, --terminal [類型]    指定要設定的終端機 (tabby / wave / both，預設為 both)");
-        Console.WriteLine("  --clean-hotkeys          清除 Tabby Terminal 快捷鍵 (僅保留核心快速鍵)");
-        Console.WriteLine("  --keep-tab-movement      搭配 --clean-hotkeys 使用，保留分頁移動快速鍵 (Ctrl-Shift-PageUp/Down)");
-        Console.WriteLine("  -h, --help               顯示此說明訊息");
+        Console.WriteLine("指令:");
+        Console.WriteLine("  font                         管理終端機字型 (列出 / 設定)");
+        Console.WriteLine("  hotkeys                      管理 Tabby 快捷鍵");
+        Console.WriteLine("  help                         顯示此說明訊息");
+        Console.WriteLine();
+        Console.WriteLine("範例:");
+        Console.WriteLine("  helper font list");
+        Console.WriteLine("  helper font set \"Cascadia Code\"");
+        Console.WriteLine("  helper font set \"Cascadia Code\" --target tabby");
+        Console.WriteLine("  helper hotkeys clean --keep-tab-movement");
+        Console.WriteLine();
+        Console.WriteLine("輸入 `helper <command> --help` 取得子命令的詳細說明。");
+    }
+
+    static void ShowFontHelp()
+    {
+        Console.WriteLine("helper font — 終端機字型管理");
+        Console.WriteLine();
+        Console.WriteLine("用法:");
+        Console.WriteLine("  helper font list [--all]");
+        Console.WriteLine("  helper font set <字型名稱> [--target tabby|wave|both]");
+        Console.WriteLine("  helper font interactive");
+        Console.WriteLine();
+        Console.WriteLine("子命令:");
+        Console.WriteLine("  list             列出適合終端機使用的等寬字型");
+        Console.WriteLine("    --all, -a      改為列出系統中所有字型 (含比例字型)");
+        Console.WriteLine("  set <name>       將指定字型寫入終端機設定檔");
+        Console.WriteLine("    --target, -t   目標終端機 (tabby / wave / both，預設 both)");
+        Console.WriteLine("  interactive      進入互動式字型挑選流程");
+    }
+
+    static void ShowHotkeysHelp()
+    {
+        Console.WriteLine("helper hotkeys — Tabby 快捷鍵管理");
+        Console.WriteLine();
+        Console.WriteLine("用法:");
+        Console.WriteLine("  helper hotkeys clean [--keep-tab-movement]");
+        Console.WriteLine();
+        Console.WriteLine("子命令:");
+        Console.WriteLine("  clean            清除 Tabby 內建快捷鍵，僅保留核心快速鍵");
+        Console.WriteLine("    --keep-tab-movement, -k");
+        Console.WriteLine("                    額外保留分頁移動快速鍵 (Ctrl-Shift-PageUp/Down)");
     }
 
     static List<string> GetMonospacedFonts()
@@ -187,40 +285,111 @@ class Program
     {
         while (true)
         {
-            Console.WriteLine("=== Windows 終端機設定輔助工具 ===");
-            Console.WriteLine("1. 設定終端機字型 (Tabby & Wave)");
-            Console.WriteLine("2. 清除 Tabby Terminal 快捷鍵 (僅保留核心快速鍵)");
-            Console.WriteLine("3. 離開");
-            Console.Write("請選擇功能 (1-3): ");
-            
-            string? choice = Console.ReadLine();
-            if (choice == "1")
-            {
-                RunFontSetupFlow(tabbyPath, wavePath);
-                Console.WriteLine("\n按下任一鍵返回主選單...");
-                Console.ReadKey(true);
-                Console.Clear();
-            }
-            else if (choice == "2")
-            {
-                Console.Write("是否保留「鍵盤移動分頁 (Ctrl-Shift-PageUp/PageDown)」快速鍵？(y/N): ");
-                string? keepInput = Console.ReadLine()?.Trim().ToLower();
-                bool keepTabMovement = keepInput == "y" || keepInput == "yes";
-                UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
-                Console.WriteLine("\n按下任一鍵返回主選單...");
-                Console.ReadKey(true);
-                Console.Clear();
-            }
-            else if (choice == "3" || string.IsNullOrEmpty(choice))
+            Console.WriteLine("=== Windows 終端機設定助手 ===");
+            Console.WriteLine();
+            Console.WriteLine("可用功能：");
+            Console.WriteLine("  1. 字型設定   — 列出 / 設定 Tabby 與 Wave 的終端機字型");
+            Console.WriteLine("  2. 快捷鍵管理 — 清除 Tabby 快捷鍵 (僅保留核心快速鍵)");
+            Console.WriteLine("  3. 顯示說明   — 列出 CLI 指令用法");
+            Console.WriteLine("  0. 離開");
+            Console.Write("請選擇功能 (0-3): ");
+
+            string? choice = Console.ReadLine()?.Trim();
+            if (string.IsNullOrEmpty(choice) || choice == "0")
             {
                 Console.WriteLine("已退出程式。");
                 break;
             }
-            else
+
+            switch (choice)
             {
-                Console.WriteLine("無效的選擇，請重新輸入。\n");
+                case "1":
+                    FontMenu(tabbyPath, wavePath);
+                    break;
+                case "2":
+                    HotkeysMenu(tabbyPath, wavePath);
+                    break;
+                case "3":
+                    ShowHelp();
+                    Pause();
+                    Console.Clear();
+                    break;
+                default:
+                    Console.WriteLine("無效的選擇，請重新輸入。\n");
+                    continue;
             }
         }
+    }
+
+    static void FontMenu(string tabbyPath, string wavePath)
+    {
+        Console.Clear();
+        Console.WriteLine("--- 字型設定 ---");
+        Console.WriteLine("  1. 列出系統等寬字型");
+        Console.WriteLine("  2. 列出系統所有字型");
+        Console.WriteLine("  3. 挑選字型並套用至終端機");
+        Console.WriteLine("  0. 返回主選單");
+        Console.Write("請選擇 (0-3): ");
+
+        string? choice = Console.ReadLine()?.Trim();
+        switch (choice)
+        {
+            case "1":
+                ListFonts(all: false);
+                Pause();
+                break;
+            case "2":
+                ListFonts(all: true);
+                Pause();
+                break;
+            case "3":
+            case "":
+                RunFontSetupFlow(tabbyPath, wavePath);
+                Pause();
+                break;
+            case "0":
+                break;
+            default:
+                Console.WriteLine("無效的選擇。");
+                Pause();
+                break;
+        }
+        Console.Clear();
+    }
+
+    static void HotkeysMenu(string tabbyPath, string wavePath)
+    {
+        Console.Clear();
+        Console.WriteLine("--- 快捷鍵管理 ---");
+        Console.WriteLine("  1. 清除 Tabby 快捷鍵 (僅保留核心快速鍵)");
+        Console.WriteLine("  0. 返回主選單");
+        Console.Write("請選擇 (0-1): ");
+
+        string? choice = Console.ReadLine()?.Trim();
+        switch (choice)
+        {
+            case "1":
+            case "":
+                Console.Write("是否保留「鍵盤移動分頁 (Ctrl-Shift-PageUp/PageDown)」快速鍵？(y/N): ");
+                string? keepInput = Console.ReadLine()?.Trim().ToLower();
+                bool keepTabMovement = keepInput == "y" || keepInput == "yes";
+                UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
+                Pause();
+                break;
+            case "0":
+                break;
+            default:
+                Console.WriteLine("無效的選擇。");
+                Pause();
+                break;
+        }
+        Console.Clear();
+    }
+
+    static void Pause()
+    {
+        Console.WriteLine("\n按下任一鍵返回...");
+        Console.ReadKey(true);
     }
 
     static void RunFontSetupFlow(string tabbyPath, string wavePath)
