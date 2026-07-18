@@ -19,7 +19,7 @@
    * **Tabby Terminal**：自動尋找並安全修改 `%APPDATA%\tabby\config.yaml`。
    * **Wave Terminal**：自動尋找並安全修改 `~/.config/waveterm/settings.json`。
 3. **Tabby 快捷鍵清理**：
-   * 將 Tabby 內建快捷鍵批次設為空，僅保留核心快速鍵 (新增分頁、命令選擇器、複製/貼上、上下分頁、終端機縮放、分頁1~9快速切換)，可選擇是否額外保留分頁移動快速鍵。
+   * 將 Tabby 內建快捷鍵批次設為空，僅保留核心快速鍵 (新增/切換/移動分頁、命令選擇器、複製/貼上、終端機縮放、分頁1~9快速切換)。
 4. **安全備份機制**：
    * 修改任何終端機的設定檔前，皆會自動生成 `.bak` 備份檔（如 `config.yaml.bak`），避免資料遺失。
 5. **雙操作模式**：
@@ -95,9 +95,6 @@ dotnet run -- font interactive
 ```powershell
 # 清除 Tabby 快捷鍵，僅保留核心快速鍵
 dotnet run -- hotkeys clean
-
-# 清除時額外保留分頁移動快速鍵 (Ctrl-Shift-PageUp/Down)
-dotnet run -- hotkeys clean --keep-tab-movement
 ```
 
 > [!NOTE]

@@ -132,8 +132,7 @@ class Program
             case "clean":
             case "reset":
             {
-                bool keepTabMovement = args.Skip(1).Any(a => a is "--keep-tab-movement" or "-k");
-                UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
+                UpdateTabbyHotkeys(tabbyPath);
                 return;
             }
             default:
@@ -211,13 +210,11 @@ class Program
         Console.WriteLine("helper hotkeys — Tabby 快捷鍵管理");
         Console.WriteLine();
         Console.WriteLine("用法:");
-        Console.WriteLine("  helper hotkeys clean [--keep-tab-movement]");
+        Console.WriteLine("  helper hotkeys clean");
         Console.WriteLine();
         Console.WriteLine("子命令:");
         Console.WriteLine("  clean            清除 Tabby 內建快捷鍵，僅保留核心快速鍵");
-        Console.WriteLine("                    保留: 新增/切換分頁、命令選擇器、複製/貼上、縮放、分頁1~9");
-        Console.WriteLine("    --keep-tab-movement, -k");
-        Console.WriteLine("                    額外保留分頁移動快速鍵 (Ctrl-Shift-PageUp/Down)");
+        Console.WriteLine("                    保留: 新增/切換/移動分頁、命令選擇器、複製/貼上、縮放、分頁1~9");
     }
 
     static List<string> GetMonospacedFonts()
@@ -371,10 +368,7 @@ class Program
         {
             case "1":
             case "":
-                Console.Write("是否保留「鍵盤移動分頁 (Ctrl-Shift-PageUp/PageDown)」快速鍵？(y/N): ");
-                string? keepInput = Console.ReadLine()?.Trim().ToLower();
-                bool keepTabMovement = keepInput == "y" || keepInput == "yes";
-                UpdateTabbyHotkeys(tabbyPath, keepTabMovement);
+                UpdateTabbyHotkeys(tabbyPath);
                 Pause();
                 break;
             case "0":
@@ -585,7 +579,7 @@ class Program
         }
     }
 
-    static void UpdateTabbyHotkeys(string configPath, bool keepTabMovement = false)
+    static void UpdateTabbyHotkeys(string configPath)
     {
         if (!File.Exists(configPath))
         {
@@ -745,14 +739,11 @@ class Program
             actionsToDisable.Remove("zoom-in");
             actionsToDisable.Remove("zoom-out");
             actionsToDisable.Remove("reset-zoom");
+            actionsToDisable.Remove("toggle-last-tab");
+            actionsToDisable.Remove("move-tab-left");
+            actionsToDisable.Remove("move-tab-right");
 
             for (int i = 1; i <= 9; i++) actionsToDisable.Remove($"tab-{i}");
-
-            if (keepTabMovement)
-            {
-                actionsToDisable.Remove("move-tab-left");
-                actionsToDisable.Remove("move-tab-right");
-            }
 
             // Generate new hotkeys section
             var newHotkeyLines = new List<string>();
@@ -767,9 +758,11 @@ class Program
             newHotkeyLines.Add("    - Ctrl-Shift-V");
             newHotkeyLines.Add("    - Shift-Insert");
             newHotkeyLines.Add("  next-tab:");
-            newHotkeyLines.Add("    - Ctrl-Tab");
+            newHotkeyLines.Add("    - Ctrl-.");
             newHotkeyLines.Add("  previous-tab:");
-            newHotkeyLines.Add("    - Ctrl-Shift-Tab");
+            newHotkeyLines.Add("    - Ctrl-,");
+            newHotkeyLines.Add("  toggle-last-tab:");
+            newHotkeyLines.Add("    - Ctrl-Tab");
             newHotkeyLines.Add("  zoom-in:");
             newHotkeyLines.Add("    - Ctrl-=");
             newHotkeyLines.Add("  zoom-out:");
@@ -780,16 +773,15 @@ class Program
             for (int i = 1; i <= 9; i++)
             {
                 newHotkeyLines.Add($"  tab-{i}:");
-                newHotkeyLines.Add($"    - Ctrl-Alt-{i}");
+                newHotkeyLines.Add($"    - Ctrl-{i}");
             }
 
-            if (keepTabMovement)
-            {
-                newHotkeyLines.Add("  move-tab-left:");
-                newHotkeyLines.Add("    - Ctrl-Shift-PageUp");
-                newHotkeyLines.Add("  move-tab-right:");
-                newHotkeyLines.Add("    - Ctrl-Shift-PageDown");
-            }
+            newHotkeyLines.Add("  move-tab-left:");
+            newHotkeyLines.Add("    - Ctrl-Alt-Left");
+            newHotkeyLines.Add("    - Ctrl-Alt-(");
+            newHotkeyLines.Add("  move-tab-right:");
+            newHotkeyLines.Add("    - Ctrl-Alt-Right");
+            newHotkeyLines.Add("    - Ctrl-Alt-.");
 
             foreach (var action in actionsToDisable.OrderBy(a => a))
             {
@@ -809,7 +801,7 @@ class Program
 
             File.WriteAllLines(configPath, lines);
             Console.WriteLine($"[Tabby] 已成功清除所有內建快捷鍵，保留核心快速鍵 (備份已儲存至 {Path.GetFileName(backupPath)})");
-            Console.WriteLine("  保留的快捷鍵: new-tab, command-selector, copy, paste, next-tab, previous-tab, zoom-in/out/reset, tab-1~9");
+            Console.WriteLine("  保留的快捷鍵: new-tab, command-selector, copy, paste, next-tab, previous-tab, toggle-last-tab, move-tab-left/right, zoom-in/out/reset, tab-1~9");
         }
         catch (Exception ex)
         {
