@@ -97,5 +97,18 @@ dotnet run -- font interactive
 dotnet run -- hotkeys clean
 ```
 
+> [!IMPORTANT]
+> **請勿重新加入 `Ctrl-.` / `Ctrl-,` 快捷鍵！**
+>
+> 這兩組按鍵會與 **Windows 中文 (與其他) 輸入法**的標點符號輸入/中英切換衝突，會在終端機中輸出中英混雜的內容、誤觸切換輸入法或插入不預期字元。
+>
+> 若有下一/上一分頁切換需求，請改用：
+>
+> * `Ctrl-1` ~ `Ctrl-9` 直接跳到指定分頁
+> * `Ctrl-Tab` 切換到最近使用的上一個分頁
+> * 滑鼠點擊分頁標籤
+>
+> 詳見 `Program.cs` 中 `UpdateTabbyHotkeys` 的註解。
+
 > [!NOTE]
 > 在使用 `dotnet run` 傳遞參數時，前方的 `--` 是為了告訴 `dotnet` 主程式將後續的所有參數直接傳遞給本工具。

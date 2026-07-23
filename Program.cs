@@ -215,6 +215,7 @@ class Program
         Console.WriteLine("子命令:");
         Console.WriteLine("  clean            清除 Tabby 內建快捷鍵，僅保留核心快速鍵");
         Console.WriteLine("                    保留: 新增/切換/移動分頁、命令選擇器、複製/貼上、縮放、分頁1~9");
+        Console.WriteLine("                    注意: Ctrl-. / Ctrl-, 與 Windows 輸入法衝突，已刻意未綁定");
     }
 
     static List<string> GetMonospacedFonts()
@@ -730,12 +731,12 @@ class Program
             }
 
             // Remove the kept keys from actionsToDisable so they are not set to []
+            // 注意: 請勿重新加入 next-tab / previous-tab 的 Ctrl-. / Ctrl-, 綁定
+            //       這些按鍵與 Windows 中文輸入法切換/符號輸入衝突，會導致輸出中英混雜錯誤
             actionsToDisable.Remove("new-tab");
             actionsToDisable.Remove("command-selector");
             actionsToDisable.Remove("copy");
             actionsToDisable.Remove("paste");
-            actionsToDisable.Remove("next-tab");
-            actionsToDisable.Remove("previous-tab");
             actionsToDisable.Remove("zoom-in");
             actionsToDisable.Remove("zoom-out");
             actionsToDisable.Remove("reset-zoom");
@@ -757,10 +758,6 @@ class Program
             newHotkeyLines.Add("  paste:");
             newHotkeyLines.Add("    - Ctrl-Shift-V");
             newHotkeyLines.Add("    - Shift-Insert");
-            newHotkeyLines.Add("  next-tab:");
-            newHotkeyLines.Add("    - Ctrl-.");
-            newHotkeyLines.Add("  previous-tab:");
-            newHotkeyLines.Add("    - Ctrl-,");
             newHotkeyLines.Add("  toggle-last-tab:");
             newHotkeyLines.Add("    - Ctrl-Tab");
             newHotkeyLines.Add("  zoom-in:");
@@ -801,7 +798,7 @@ class Program
 
             File.WriteAllLines(configPath, lines);
             Console.WriteLine($"[Tabby] 已成功清除所有內建快捷鍵，保留核心快速鍵 (備份已儲存至 {Path.GetFileName(backupPath)})");
-            Console.WriteLine("  保留的快捷鍵: new-tab, command-selector, copy, paste, next-tab, previous-tab, toggle-last-tab, move-tab-left/right, zoom-in/out/reset, tab-1~9");
+            Console.WriteLine("  保留的快捷鍵: new-tab, command-selector, copy, paste, toggle-last-tab, move-tab-left/right, zoom-in/out/reset, tab-1~9");
         }
         catch (Exception ex)
         {
